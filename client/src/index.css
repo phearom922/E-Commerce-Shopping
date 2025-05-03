@@ -1,0 +1,71 @@
+@import "tailwindcss";
+/*=============== GOOGLE FONTS ===============*/
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,100..700;1,100..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;900&display=swap');
+
+
+@theme {
+  --font-kantumruy: "Kantumruy Pro", sans-serif;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  color: #242329;
+}
+
+#khmerFont {
+  font-family: 'Kantumruy Pro', sans-serif;
+}
+
+.active {
+
+  @apply bg-indigo-100 text-indigo-600
+}
+
+kantumruy-pro {
+  font-family: "Kantumruy Pro", sans-serif;
+}
+
+/* width */
+::-webkit-scrollbar {
+  width: 7px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #fbfaf9;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #bdbfc1;
+  border-radius: 100vh;
+}
+
+
+#button::before {
+  content: " ";
+  transition: all 255ms ease-in-out;
+  -moz-transition: all 255ms ease-in-out;
+  -webkit-transition: all 255ms ease-in-out;
+  transform: scale3d(0.1, 1, 0);
+  -webkit-transform: scale3d(0.1, 1, 0);
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-color: rgba(255, 255, 255, 0.104);
+}
+
+#button:hover::before {
+  transform: scale3d(1, 1, 1);
+  opacity: 1;
+}
+
+/* Chrome, Safari, Edge, Opera  Hide Arrows From Input Number*/
+/* input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+} */

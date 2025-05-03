@@ -1,0 +1,230 @@
+Update!!
+1.server/teegramBot.js==================================================
+const TelegramBot = require("node-telegram-bot-api");
+const TelegramUser = require("./models/TelegramUser");
+
+const botToken = process.env.TELEGRAM_BOT_TOKEN;
+const bot = new TelegramBot(botToken, { polling: true });
+
+bot.onText(/\/start/, async (msg) => {
+  const chatId = msg.chat.id;
+  const username = msg.from.username;
+
+  if (!username) {
+    bot.sendMessage(chatId, "Please set a Telegram username to proceed.");
+    return;
+  }
+
+  try {
+    // บันทึกหรืออัปเดต chatId และ username
+    await TelegramUser.findOneAndUpdate(
+      { username: `@${username}` },
+      { chatId, username: `@${username}` },
+      { upsert: true, new: true }
+    );
+    bot.sendMessage(chatId, `Welcome! Your Telegram account is linked.`);
+  } catch (error) {
+    console.error("Error saving Telegram user:", error);
+    bot.sendMessage(chatId, "Error linking your account. Please try again.");
+  }
+});
+
+module.exports = bot;
+
+
+2.server/sever.js=================================
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+const bodyParser = require("body-parser");
+require("dotenv").config();
+const { readdirSync } = require("fs");
+const connectDB = require("./config/db");
+const telegramBot = require("./telegramBot");
+const app = express();
+
+// Connect Database
+connectDB();
+
+// Middleware
+app.use(morgan("dev"));
+app.use(bodyParser.json({ limit: "200mb" }));
+app.use(cors());
+
+// Auto load routes
+readdirSync("./routes").map((r) => app.use("/api", require("./routes/" + r)));
+
+const port = process.env.PORT || 5000;
+app.listen(port,  () => {
+  console.log("✅ Server is running on port:", port);
+});
+
+3.server/routes/sendTelegram.js=================================
+const express = require("express");
+const router = express.Router();
+const { SaveOrderTelegram } = require("../controllers/sendTelegram");
+const { auth } = require("../middleware/auth");
+
+router.post("/save-order-telegram",auth, SaveOrderTelegram);
+module.exports = router;
+
+4.server/routes/users.js==============================
+const express = require("express");
+const router = express.Router();
+
+//Controllers
+const {
+  listUsers,
+  readUsers,
+  updateUsers,
+  removeUsers,
+  changeStatus,
+  changeRole,
+  userCart,
+  getUserCart,
+  saveAddress,
+  saveOrder,
+  addToWishList,
+  getToWishList,
+  removeToWishList,
+  emptyCart,
+  getOrders,
+} = require("../controllers/users");
+
+// Middleware
+const { auth, adminCheck } = require("../middleware/auth");
+
+router.get("/users", auth, adminCheck, listUsers);
+router.get("/users/:id", readUsers);
+router.put("/users/:id", auth, adminCheck, updateUsers);
+router.delete("/users/:id", removeUsers);
+router.post("/change-status", auth, adminCheck, changeStatus);
+router.post("/change-role", auth, adminCheck, changeRole);
+router.post("/user/cart", auth, userCart);
+router.get("/user/cart", auth, getUserCart);
+//Save Address
+router.post("/user/address", auth, saveAddress);
+
+//Save Order
+router.post("/user/order", auth, saveOrder);
+router.get("/user/orders", auth, getOrders);
+
+//Wishlist
+router.post("/user/wishlist", auth, addToWishList);
+router.get("/user/wishlist", auth, getToWishList);
+router.put("/user/wishlist/:productId", auth, removeToWishList);
+
+//remove cart
+router.delete("/user/cart", auth, emptyCart);
+
+
+
+module.exports = router;
+
+
+
+5.server\controllers\sendTelegram.js=====================
+const mongoose = require("mongoose");
+const axios = require("axios");
+const Order = require("../models/Order");
+const TelegramUser = require("../models/TelegramUser");
+
+exports.SaveOrderTelegram = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    // ค้นหาคำสั่งซื้อ
+    const order = await Order.findById(orderId)
+      .populate("products.product")
+      .populate("orderBy");
+
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const { products, cartTotal, shippingAddress } = order;
+    const { usernameTelegram } = shippingAddress;
+
+    if (!usernameTelegram) {
+      return res.status(400).json({
+        message: "No Telegram username provided",
+        telegramSent: false,
+      });
+    }
+
+    // ค้นหา chat_id จาก username
+    const telegramUser = await TelegramUser.findOne({ username: usernameTelegram });
+    if (!telegramUser) {
+      return res.status(400).json({
+        message: "Telegram user not found. Please interact with the bot first.",
+        telegramSent: false,
+      });
+    }
+
+    // สร้างข้อความ
+    let message = `📦 *New Order Placed*\n\n`;
+    message += `👤 Customer: ${shippingAddress.fullName}\n`;
+    message += `📋 Order Details:\n`;
+    products.forEach((item, index) => {
+      const productName = item.product.title;
+      const quantity = item.count;
+      const price = item.discount
+        ? (item.price - (item.price * item.discount) / 100).toFixed(2)
+        : item.price.toFixed(2);
+      const total = (price * quantity).toFixed(2);
+      message += `${index + 1}. ${productName} (x${quantity}) - $${total}\n`;
+    });
+    message += `\n💵 Total: $${cartTotal.toFixed(2)}\n`;
+    message += `\n📍 Shipping Address: ${shippingAddress.area}, ${shippingAddress.city}, ${shippingAddress.state}, ${shippingAddress.pincode}\n`;
+    message += `📞 Phone: ${shippingAddress.phoneNumber}\n`;
+
+    // ส่งข้อความไปยัง Telegram
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const telegramApiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+    const response = await axios.post(telegramApiUrl, {
+      chat_id: telegramUser.chatId, // ใช้ chat_id จากฐานข้อมูล
+      text: message,
+      parse_mode: "Markdown",
+    });
+
+    if (response.data.ok) {
+      res.status(200).json({
+        message: "Telegram message sent successfully",
+        telegramSent: true,
+      });
+    } else {
+      res.status(400).json({
+        message: "Failed to send Telegram message",
+        telegramSent: false,
+      });
+    }
+  } catch (error) {
+    console.error("Error sending Telegram message:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      telegramSent: false,
+    });
+  }
+};
+
+6.client\src\components\functions\sendTelegram.js=============
+import axios from "axios";
+
+export const sendTelegramMessage = async (token, orderId) => {
+  try {
+    const response = await axios.post(
+      "/api/send-telegram/save-order-telegram",
+      { orderId },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error sending Telegram message:", error);
+    return { telegramSent: false, error: error.response?.data?.error || "Failed to send Telegram message" };
+  }
+};
