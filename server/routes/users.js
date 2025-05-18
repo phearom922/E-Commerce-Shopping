@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-
+const upload = require("../middleware/multer");
 //Controllers
 const {
   listUsers,
@@ -18,6 +18,10 @@ const {
   removeToWishList,
   emptyCart,
   getOrders,
+  updateUsername,
+  getUserProfile,
+  updateAddress,
+  uploadProfilePicture
 } = require("../controllers/users");
 
 // Middleware
@@ -46,6 +50,11 @@ router.put("/user/wishlist/:productId", auth, removeToWishList);
 //remove cart
 router.delete("/user/cart", auth, emptyCart);
 
+//Update User
+router.get("/profile", auth, getUserProfile);
+router.post("/update-username", auth, updateUsername);
+router.post("/update-address", auth, updateAddress);
+router.post("/upload-profile-picture", auth, upload.single("profilePicture"), uploadProfilePicture);
 
 
 module.exports = router;

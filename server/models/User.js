@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema(
     googleId: { type: String },
     role: { type: String, default: "user", },
     enabled: { type: Boolean, default: true, },
+    profilePicture: { type: String, default: "https://avatar.iran.liara.run/public" },
     address: {
       fullName: String,
       phoneNumber: Number,

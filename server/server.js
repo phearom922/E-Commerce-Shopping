@@ -16,14 +16,14 @@ app.use(morgan("dev"));
 app.use(bodyParser.json({ limit: "200mb" }));
 app.use(cors());
 
-// Auto load routes==============
+
+// Auto load routes
 app.use("/api", (req, res, next) => {
   console.log("Request received at /api:", req.path);
   next();
 });
 
 readdirSync("./routes").map((r) => app.use("/api", require("./routes/" + r)));
-
 const port = process.env.PORT || 5000;
 app.listen(port,  () => {
   console.log("✅ Server is running on port:", port);

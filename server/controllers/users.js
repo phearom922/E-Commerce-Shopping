@@ -1,5 +1,8 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+
+const cloudinary = require("../config/cloudinary");
+
 //Models
 const User = require("../models/User");
 const Product = require("../models/Product");
@@ -305,5 +308,153 @@ exports.getOrders = async (req, res) => {
     res.json(order);
   } catch (err) {
     res.status(500).send("get order Error");
+  }
+};
+
+
+exports.updateUsername = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "jwtSecret");
+    const userId = decoded._id;
+
+    const { newUsername } = req.body;
+    if (!newUsername || newUsername.trim() === "") {
+      return res.status(400).json({ error: "New username is required" });
+    }
+
+    // ตรวจสอบว่า username ใหม่ซ้ำหรือไม่
+    const existingUser = await User.findOne({ username: newUsername });
+    if (existingUser && existingUser._id.toString() !== userId) {
+      return res.status(400).json({ error: "Username already exists" });
+    }
+
+    // อัปเดต username
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { username: newUsername },
+      { new: true }
+    ).exec();
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      message: "Username updated successfully",
+      user: { username: updatedUser.username },
+    });
+  } catch (err) {
+    console.error("Error in updateUsername:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+exports.getUserProfile = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "jwtSecret");
+    const user = await User.findById(decoded._id).exec();
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error("Error in getUserProfile:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+exports.updateAddress = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "jwtSecret");
+    const { address } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      decoded._id,
+      { address },
+      { new: true }
+    ).exec();
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(updatedUser);
+  } catch (err) {
+    console.error("Error in updateAddress:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+//Upload File
+
+exports.uploadProfilePicture = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "jwtSecret");
+    const userId = decoded._id;
+
+    // ตรวจสอบว่า req.file มีหรือไม่
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // อัปโหลดไปยัง Cloudinary
+    console.log("Received file:", req.file);
+    console.log("Uploading to Cloudinary...");
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "profile_pictures" },
+        (error, result) => {
+          if (error) {
+            console.error("Cloudinary error:", error);
+            reject(error);
+          } else {
+            console.log("Cloudinary result:", result);
+            resolve(result);
+          }
+        }
+      );
+      stream.end(req.file.buffer);
+    });
+
+    // อัปเดต URL ใน MongoDB
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { profilePicture: result.secure_url },
+      { new: true }
+    ).exec();
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      message: "Profile picture updated successfully",
+      profilePicture: updatedUser.profilePicture,
+    });
+  } catch (err) {
+    console.error("Error in uploadProfilePicture:", err);
+    res.status(500).json({ error: "Internal server error", details: err.message });
   }
 };

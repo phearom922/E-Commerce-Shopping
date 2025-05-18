@@ -37,3 +37,30 @@ exports.removeImage = async (req, res) => {
     res.status(500).send("Remove Error!!");
   }
 };
+
+
+//Profile
+exports.createImageProfile = async (req, res) => {
+  try {
+    const result = await cloudinary.uploader.upload(req.body.image, {
+      public_id: Date.now(),
+      resource_type: "auto",
+    });
+    res.send(result);
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Upload Image Profile Error!!");
+  }
+};
+
+exports.removeImageProfile = async (req, res) => {
+  try {
+    let image_id = req.body.public_id;
+    cloudinary.uploader.destroy(image_id, (result) => {
+      res.send(result);
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Remove Image Profile Error!!");
+  }
+};
